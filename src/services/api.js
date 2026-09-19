@@ -168,8 +168,8 @@ export const submitSurveyResponse = (surveyId, data) => request(`/surveys/${surv
 export const getSurveyResults = (surveyId) => request(`/surveys/${surveyId}/results`);
 
 // ---------- Conversation Intelligence ----------
-export const processConversation = (agentId, customerText, conversationHistory, callId) =>
-  request("/conversation/process", { method: "POST", body: { agentId, customerText, conversationHistory, callId } });
+export const processConversation = (agentId, customerText, conversationHistory, sessionId, callId) =>
+  request("/conversation/process", { method: "POST", body: { agentId, customerText, conversationHistory, sessionId, callId } });
 export const getConversationSession = (sessionId) => request(`/conversation/sessions/${sessionId}`);
 export const getCallConversationSession = (callId) => request(`/conversation/calls/${callId}/session`);
 

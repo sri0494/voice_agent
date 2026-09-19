@@ -14,6 +14,7 @@ export default function ConversationTestPanel() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -24,7 +25,8 @@ export default function ConversationTestPanel() {
     const historyForApi = messages.map((m) => ({ role: m.role, content: m.content }));
 
     try {
-      const result = await api.processConversation(id, customerText, historyForApi);
+      const result = await api.processConversation(id, customerText, historyForApi, sessionId);
+      setSessionId(result.sessionId);
       setMessages((prev) => [
         ...prev,
         { role: "user", content: customerText },
@@ -38,6 +40,12 @@ export default function ConversationTestPanel() {
     }
   };
 
+  const handleReset = () => {
+    setMessages([]);
+    setLastAnalysis(null);
+    setSessionId(null);
+  };
+
   return (
     <div>
       <Link to={`/ai-engine/agents/${id}`} style={{ color: "var(--text-secondary)", fontSize: 13 }}>← Back to Agent</Link>
@@ -49,7 +57,10 @@ export default function ConversationTestPanel() {
 
       <div className="grid grid-cols-2" style={{ alignItems: "flex-start" }}>
         <div className="card" style={{ minHeight: 320 }}>
-          <div style={{ fontWeight: 700, marginBottom: 10 }}>Conversation</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontWeight: 700 }}>Conversation {sessionId && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>· session active</span>}</div>
+            {messages.length > 0 && <button className="btn btn-sm" onClick={handleReset}>New Conversation</button>}
+          </div>
           <div style={{ marginBottom: 14, maxHeight: 360, overflowY: "auto" }}>
             {messages.length === 0 && <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Send a test message to begin.</div>}
             {messages.map((m, i) => (

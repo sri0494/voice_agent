@@ -44,9 +44,17 @@ router.put("/:agentId", async (req, res, next) => {
        RETURNING id, primary_objective, allowed_topics, restricted_topics, required_information,
                  off_topic_strategy, max_off_topic_turns, knowledge_only_mode, confidence_threshold,
                  conversation_style, extraction_fields`,
-      [req.params.agentId, b.primaryObjective, b.allowedTopics, b.restrictedTopics, b.requiredInformation,
-       b.offTopicStrategy, b.maxOffTopicTurns, b.knowledgeOnlyMode, b.confidenceThreshold,
-       b.conversationStyle, b.extractionFields ? JSON.stringify(b.extractionFields) : null]
+      [req.params.agentId,
+       b.primaryObjective ?? null,
+       b.allowedTopics ?? null,
+       b.restrictedTopics ?? null,
+       b.requiredInformation ?? null,
+       b.offTopicStrategy ?? null,
+       b.maxOffTopicTurns ?? null,
+       b.knowledgeOnlyMode ?? null,
+       b.confidenceThreshold ?? null,
+       b.conversationStyle ?? null,
+       b.extractionFields ? JSON.stringify(b.extractionFields) : null]
     );
     if (!rows[0]) throw new ApiError(404, "Agent not found");
     res.json({ success: true, data: rows[0], message: "Conversation intelligence settings saved" });

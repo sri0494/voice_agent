@@ -18,6 +18,9 @@ export default function AgentSteering() {
         allowedTopicsText: (c.allowed_topics || []).join(", "),
         restrictedTopicsText: (c.restricted_topics || []).join(", "),
         requiredInfoText: (c.required_information || []).join(", "),
+        extraction_fields: c.extraction_fields && c.extraction_fields.length > 0
+          ? c.extraction_fields
+          : [],
       });
       setState("ready");
     } catch {
@@ -29,6 +32,19 @@ export default function AgentSteering() {
 
   const set = (key) => (e) => setConfig({ ...config, [key]: e.target.value });
   const setChecked = (key) => (e) => setConfig({ ...config, [key]: e.target.checked });
+
+  const addExtractionField = () => {
+    setConfig({ ...config, extraction_fields: [...config.extraction_fields, { key: "", label: "", type: "text" }] });
+  };
+  const updateExtractionField = (index, field, value) => {
+    const updated = [...config.extraction_fields];
+    updated[index] = { ...updated[index], [field]: value };
+    if (field === "label") updated[index].key = value.toLowerCase().trim().replace(/\s+/g, "_");
+    setConfig({ ...config, extraction_fields: updated });
+  };
+  const removeExtractionField = (index) => {
+    setConfig({ ...config, extraction_fields: config.extraction_fields.filter((_, i) => i !== index) });
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -43,6 +59,7 @@ export default function AgentSteering() {
         knowledgeOnlyMode: config.knowledge_only_mode,
         confidenceThreshold: Number(config.confidence_threshold),
         conversationStyle: config.conversation_style,
+        extractionFields: config.extraction_fields.filter((f) => f.key && f.label),
       });
       alert("Conversation intelligence settings saved");
     } catch (err) {
@@ -111,7 +128,26 @@ export default function AgentSteering() {
           <input className="input" value={config.conversation_style || ""} onChange={set("conversation_style")} />
         </div>
 
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Settings"}</button>
+        <div className="form-group">
+          <label>Information to Extract from Speech</label>
+          <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8 }}>
+            Only numeric fields (e.g. "Budget") are reliably extracted in mock mode — text fields
+            (e.g. "Product") need a real AI provider to extract accurately.
+          </div>
+          {config.extraction_fields.map((f, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+              <input className="input" placeholder="Label, e.g. Budget" value={f.label} onChange={(e) => updateExtractionField(i, "label", e.target.value)} />
+              <select className="input" style={{ maxWidth: 110 }} value={f.type} onChange={(e) => updateExtractionField(i, "type", e.target.value)}>
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+              </select>
+              <button type="button" className="btn btn-sm btn-danger" onClick={() => removeExtractionField(i)}>✕</button>
+            </div>
+          ))}
+          <button type="button" className="btn btn-sm" onClick={addExtractionField}>+ Add Field</button>
+        </div>
+
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ marginTop: 10 }}>{saving ? "Saving..." : "Save Settings"}</button>
       </div>
 
       <div className="card" style={{ maxWidth: 620, marginTop: 16, background: "var(--bg-elevated)" }}>

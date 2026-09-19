@@ -13,7 +13,11 @@ import { logger } from "../../utils/logger.js";
 
 const aiProvider = createAIProvider();
 
-async function getOrCreateSession(callId, agentId) {
+async function getOrCreateSession(sessionId, callId, agentId) {
+  if (sessionId) {
+    const { rows } = await query(`SELECT * FROM conversation_sessions WHERE id = $1`, [sessionId]);
+    if (rows[0]) return rows[0];
+  }
   if (callId) {
     const { rows } = await query(`SELECT * FROM conversation_sessions WHERE call_id = $1`, [callId]);
     if (rows[0]) return rows[0];
@@ -25,14 +29,18 @@ async function getOrCreateSession(callId, agentId) {
   return rows[0];
 }
 
-function buildOffTopicResponse(agent, session) {
+function buildOffTopicResponse(agent, session, briefAnswer) {
   const overLimit = session.off_topic_turn_count >= agent.max_off_topic_turns;
   if (overLimit) {
     return `It looks like we're discussing something outside the purpose of this call. Let's continue — ${agent.primary_objective || "how can I help with your original question?"}`;
   }
-  return agent.off_topic_strategy === "STRICT_KNOWLEDGE_ONLY"
-    ? "I don't have that information in my available information. I can help you with the services covered by this agent."
-    : "I'm here to help with our services. Could you tell me more about what you need?";
+  if (agent.off_topic_strategy === "STRICT_KNOWLEDGE_ONLY") {
+    return "I don't have that information in my available information. I can help you with the services covered by this agent.";
+  }
+  if (agent.off_topic_strategy === "BRIEF_ANSWER_THEN_REDIRECT" && briefAnswer) {
+    return `${briefAnswer} That said, ${agent.primary_objective ? `I'm here to help with ${agent.primary_objective.toLowerCase()}.` : "let's get back to how I can help you."} What would you like to know?`;
+  }
+  return "I'm here to help with our services. Could you tell me more about what you need?";
 }
 
 // Naive objective-progress heuristic: fraction of the agent's configured
@@ -53,10 +61,14 @@ function computeObjectiveProgress(agent, extractedData) {
  * @param {Object} input
  * @param {string} input.agentId
  * @param {string} [input.callId]
+ * @param {string} [input.sessionId] - pass the sessionId returned from a
+ *   previous turn to continue the same session when there's no real call
+ *   (e.g. the Testing Playground). Without this, every turn without a
+ *   callId starts a fresh session and objective progress never accumulates.
  * @param {string} input.customerText
  * @param {Array<{role, content}>} [input.conversationHistory]
  */
-export async function processConversationTurn({ agentId, callId, customerText, conversationHistory = [] }) {
+export async function processConversationTurn({ agentId, callId, sessionId, customerText, conversationHistory = [] }) {
   const { rows: agentRows } = await query(`SELECT * FROM agents WHERE id = $1`, [agentId]);
   const agent = agentRows[0];
   if (!agent) throw new Error("Agent not found");
@@ -67,7 +79,7 @@ export async function processConversationTurn({ agentId, callId, customerText, c
   );
   const knowledgeBaseIds = kbRows.map((r) => r.knowledge_base_id);
 
-  const session = await getOrCreateSession(callId, agentId);
+  const session = await getOrCreateSession(sessionId, callId, agentId);
 
   // 1. Knowledge retrieval (needed before classification, since relevance
   //    depends partly on whether the KB actually covers this question).
@@ -88,10 +100,28 @@ export async function processConversationTurn({ agentId, callId, customerText, c
     responseText = "For your security, I can't help with that over this line. Let me connect you with a team member.";
   } else if (analysis.relevance === "OFF_TOPIC") {
     offTopicTurnCount += 1;
-    nextAction = offTopicTurnCount >= agent.max_off_topic_turns ? "redirect" : "redirect";
-    responseText = buildOffTopicResponse(agent, { ...session, off_topic_turn_count: offTopicTurnCount });
+    nextAction = "redirect";
+
+    let briefAnswer = null;
+    if (agent.off_topic_strategy === "BRIEF_ANSWER_THEN_REDIRECT" && offTopicTurnCount < agent.max_off_topic_turns) {
+      // Attempt a short answer to the off-topic question before redirecting.
+      // Honesty note: in mock mode there's no real knowledge for an
+      // off-topic question, so this will usually just be the AI provider's
+      // generic fallback text rather than a genuinely useful brief answer —
+      // this becomes meaningfully better once a real AI_PROVIDER is connected.
+      const briefResult = await aiProvider.generateResponse({
+        systemPrompt: agent.system_prompt || "",
+        context: "",
+        temperature: agent.temperature,
+        fallbackMessage: null,
+        messages: [{ role: "user", content: customerText }],
+      });
+      briefAnswer = briefResult.usedFallback ? null : briefResult.text;
+    }
+
+    responseText = buildOffTopicResponse(agent, { ...session, off_topic_turn_count: offTopicTurnCount }, briefAnswer);
   } else {
-    const relevantChunks = knowledgeMatches.filter((c) => c.similarity >= (agent.confidence_threshold ?? 0.5));
+    const relevantChunks = knowledgeMatches.filter((c) => c.similarity >= Number(agent.confidence_threshold ?? 0.5));
     const context = relevantChunks.map((c) => c.content).join("\n---\n");
 
     if (agent.knowledge_only_mode && !context && analysis.relevance !== "SURVEY_RESPONSE" && analysis.relevance !== "FEEDBACK") {

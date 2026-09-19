@@ -13,7 +13,8 @@ router.get("/", async (req, res, next) => {
     const { rows } = await query(
       `SELECT s.*, a.name AS agent_name,
         (SELECT COUNT(*) FROM survey_questions WHERE survey_id = s.id) AS question_count,
-        (SELECT COUNT(DISTINCT call_id) FROM survey_responses WHERE survey_id = s.id) AS response_count
+        (SELECT COUNT(DISTINCT COALESCE(call_id::text, contact_id::text, customer_id::text, id::text))
+         FROM survey_responses WHERE survey_id = s.id) AS response_count
        FROM surveys s LEFT JOIN agents a ON a.id = s.agent_id ORDER BY s.created_at DESC`
     );
     res.json({ success: true, data: rows, message: "Success" });
@@ -51,7 +52,7 @@ router.put("/:id", async (req, res, next) => {
       `UPDATE surveys SET name = COALESCE($2,name), description = COALESCE($3,description),
         status = COALESCE($4,status), agent_id = COALESCE($5,agent_id), updated_at = now()
        WHERE id = $1 RETURNING *`,
-      [req.params.id, name, description, status, agentId]
+      [req.params.id, name ?? null, description ?? null, status ?? null, agentId ?? null]
     );
     if (!rows[0]) throw new ApiError(404, "Survey not found");
     res.json({ success: true, data: rows[0], message: "Survey updated" });
@@ -140,7 +141,7 @@ router.get("/:id/results", async (req, res, next) => {
     }));
 
     const { rows: overall } = await query(
-      `SELECT COUNT(DISTINCT call_id) AS total_responses,
+      `SELECT COUNT(DISTINCT COALESCE(call_id::text, contact_id::text, customer_id::text, id::text)) AS total_responses,
         COUNT(*) FILTER (WHERE sentiment = 'Positive') AS positive,
         COUNT(*) FILTER (WHERE sentiment = 'Negative') AS negative,
         COUNT(*) FILTER (WHERE sentiment = 'Neutral') AS neutral

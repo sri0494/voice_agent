@@ -13,12 +13,13 @@ router.use(requireAuth);
 // you type a test message in the UI.
 router.post("/process", async (req, res, next) => {
   try {
-    const { agentId, callId, customerText, conversationHistory } = req.body;
+    const { agentId, callId, sessionId, customerText, conversationHistory } = req.body;
     if (!agentId || !customerText) throw new ApiError(400, "agentId and customerText are required");
 
     const result = await processConversationTurn({
       agentId,
       callId: callId || null,
+      sessionId: sessionId || null,
       customerText,
       conversationHistory: conversationHistory || [],
     });
