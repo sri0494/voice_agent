@@ -156,6 +156,27 @@ export const createPhoneNumber = (data) => request("/phone-numbers", { method: "
 export const updatePhoneNumber = (id, data) => request(`/phone-numbers/${id}`, { method: "PUT", body: data });
 export const deletePhoneNumber = (id) => request(`/phone-numbers/${id}`, { method: "DELETE" });
 
+// ---------- Surveys ----------
+export const getSurveys = () => request("/surveys");
+export const getSurvey = (id) => request(`/surveys/${id}`);
+export const createSurvey = (data) => request("/surveys", { method: "POST", body: data });
+export const updateSurvey = (id, data) => request(`/surveys/${id}`, { method: "PUT", body: data });
+export const deleteSurvey = (id) => request(`/surveys/${id}`, { method: "DELETE" });
+export const addSurveyQuestion = (surveyId, data) => request(`/surveys/${surveyId}/questions`, { method: "POST", body: data });
+export const deleteSurveyQuestion = (questionId) => request(`/surveys/questions/${questionId}`, { method: "DELETE" });
+export const submitSurveyResponse = (surveyId, data) => request(`/surveys/${surveyId}/responses`, { method: "POST", body: data });
+export const getSurveyResults = (surveyId) => request(`/surveys/${surveyId}/results`);
+
+// ---------- Conversation Intelligence ----------
+export const processConversation = (agentId, customerText, conversationHistory, callId) =>
+  request("/conversation/process", { method: "POST", body: { agentId, customerText, conversationHistory, callId } });
+export const getConversationSession = (sessionId) => request(`/conversation/sessions/${sessionId}`);
+export const getCallConversationSession = (callId) => request(`/conversation/calls/${callId}/session`);
+
+// ---------- Agent Steering / Objective Config ----------
+export const getAgentSteering = (agentId) => request(`/agent-steering/${agentId}`);
+export const updateAgentSteering = (agentId, data) => request(`/agent-steering/${agentId}`, { method: "PUT", body: data });
+
 export function setAuthToken(token) {
   if (token) localStorage.setItem("leomox_token", token);
   else localStorage.removeItem("leomox_token");

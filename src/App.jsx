@@ -21,6 +21,10 @@ import Analytics from "./pages/Analytics.jsx";
 import Integrations from "./pages/Integrations.jsx";
 import Settings from "./pages/Settings.jsx";
 import ContactRequests from "./pages/ContactRequests.jsx";
+import Surveys from "./pages/Surveys.jsx";
+import SurveyDetail from "./pages/SurveyDetail.jsx";
+import AgentSteering from "./pages/ai-engine/AgentSteering.jsx";
+import ConversationTestPanel from "./pages/ai-engine/ConversationTestPanel.jsx";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -56,6 +60,8 @@ export default function App() {
         <Route path="/calls/:id" element={<CallDetail />} />
         <Route path="/ai-engine/agents" element={<Agents />} />
         <Route path="/ai-engine/agents/:id" element={<AgentDetail />} />
+        <Route path="/ai-engine/agents/:id/steering" element={<AgentSteering />} />
+        <Route path="/ai-engine/agents/:id/test" element={<ConversationTestPanel />} />
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
         <Route path="/knowledge-base/:id" element={<KnowledgeBaseDetail />} />
         <Route path="/phone-numbers" element={<PhoneNumbers />} />
@@ -63,6 +69,8 @@ export default function App() {
         <Route path="/contact-requests" element={<ContactRequests />} />
         <Route path="/integrations" element={<Integrations />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/surveys" element={<Surveys />} />
+        <Route path="/surveys/:id" element={<SurveyDetail />} />
       </Route>
 
       <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />

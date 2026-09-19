@@ -30,6 +30,9 @@ import analyticsRoutes from "./routes/analytics.js";
 import integrationRoutes from "./routes/integrations.js";
 import businessIntegrationRoutes from "./routes/businessIntegrations.js";
 import phoneNumberRoutes from "./routes/phoneNumbers.js";
+import conversationRoutes from "./routes/conversation.js";
+import surveyRoutes from "./routes/surveys.js";
+import agentSteeringRoutes from "./routes/agentSteering.js";
 
 dotenv.config();
 
@@ -74,6 +77,9 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/integrations", integrationRoutes);
 app.use("/api/business-integrations", businessIntegrationRoutes);
 app.use("/api/phone-numbers", phoneNumberRoutes);
+app.use("/api/conversation", conversationRoutes);
+app.use("/api/surveys", surveyRoutes);
+app.use("/api/agent-steering", agentSteeringRoutes);
 
 // --- Serve built frontend in production (single Render web service) ---
 const distPath = path.resolve(__dirname, "../dist");

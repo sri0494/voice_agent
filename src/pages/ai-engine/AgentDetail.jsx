@@ -85,8 +85,16 @@ export default function AgentDetail() {
   return (
     <div>
       <Link to="/ai-engine/agents" style={{ color: "var(--text-secondary)", fontSize: 13 }}>← Back to Agents</Link>
-      <div className="section-title" style={{ marginTop: 8 }}>{agent.name}</div>
-      <div className="section-sub">AI Voice Agent configuration</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div className="section-title" style={{ marginBottom: 0 }}>{agent.name}</div>
+          <div className="section-sub">AI Voice Agent configuration</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link to={`/ai-engine/agents/${id}/steering`} className="btn btn-sm">Conversation Settings</Link>
+          <Link to={`/ai-engine/agents/${id}/test`} className="btn btn-sm">Test Playground</Link>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2" style={{ alignItems: "flex-start" }}>
         <div className="card">
