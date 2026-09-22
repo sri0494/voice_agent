@@ -5,16 +5,53 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 const router = Router();
 router.use(requireAuth);
 
-// Reports which providers are configured via env vars (never returns secret values).
+// Reports which providers are configured — and, critically, whether a real
+// adapter actually exists for the configured value and whether its
+// required credentials are present. Previously this reported "CONNECTED"
+// for ANY non-"mock" value, even typos or providers with no real
+// implementation — which silently misled the UI into claiming a real
+// connection while the backend kept using the mock provider underneath.
+function evaluateProvider({ envVar, value, implemented, requiredKeys = [] }) {
+  if (!value || value === "mock") {
+    return { status: "DISCONNECTED", detail: "Using mock implementation (no real calls/output)" };
+  }
+  if (!implemented.includes(value)) {
+    const looksLikeACredential = value.length > 24 || /[^a-z0-9._-]/i.test(value);
+    const hint = looksLikeACredential
+      ? ` This looks like it might be an API key pasted into the wrong field — ${envVar} should be a short provider name (e.g. "${implemented[0] || "mock"}"), and the actual key belongs in its own *_API_KEY variable.`
+      : "";
+    return { status: "ERROR", detail: `"${value}" has no real adapter implemented. Supported: ${implemented.join(", ") || "none yet"}.${hint} Falling back to mock.` };
+  }
+  const missingKeys = requiredKeys.filter((k) => !process.env[k]);
+  if (missingKeys.length > 0) {
+    return { status: "ERROR", detail: `Missing required env var(s): ${missingKeys.join(", ")}. Falling back to mock.` };
+  }
+  return { status: "CONNECTED", detail: "Real provider active" };
+}
+
 router.get("/", async (req, res, next) => {
   try {
-    const status = (envKey) => (process.env[envKey] && process.env[envKey] !== "mock" ? "CONNECTED" : "DISCONNECTED");
+    const ai = evaluateProvider({ envVar: "AI_PROVIDER", value: process.env.AI_PROVIDER, implemented: ["gemini"], requiredKeys: ["AI_API_KEY"] });
+    const stt = evaluateProvider({ envVar: "STT_PROVIDER", value: process.env.STT_PROVIDER, implemented: [], requiredKeys: [] });
+    const tts = evaluateProvider({ envVar: "TTS_PROVIDER", value: process.env.TTS_PROVIDER, implemented: [], requiredKeys: [] });
+    const telephony = evaluateProvider({
+      envVar: "TELEPHONY_PROVIDER", value: process.env.TELEPHONY_PROVIDER, implemented: ["twilio"],
+      requiredKeys: ["TELEPHONY_API_KEY", "TELEPHONY_API_SECRET", "TELEPHONY_PHONE_NUMBER", "PUBLIC_BASE_URL"],
+    });
+    const embeddings = evaluateProvider({ envVar: "EMBEDDING_PROVIDER", value: process.env.EMBEDDING_PROVIDER, implemented: ["google", "gemini"], requiredKeys: [] });
+
     const builtIn = [
-      { name: "AI Provider", type: "AI", envVar: "AI_PROVIDER", status: status("AI_PROVIDER"), value: process.env.AI_PROVIDER || "mock" },
-      { name: "Speech to Text", type: "STT", envVar: "STT_PROVIDER", status: status("STT_PROVIDER"), value: process.env.STT_PROVIDER || "mock" },
-      { name: "Text to Speech", type: "TTS", envVar: "TTS_PROVIDER", status: status("TTS_PROVIDER"), value: process.env.TTS_PROVIDER || "mock" },
-      { name: "Telephony", type: "TELEPHONY", envVar: "TELEPHONY_PROVIDER", status: status("TELEPHONY_PROVIDER"), value: process.env.TELEPHONY_PROVIDER || "mock" },
-      { name: "Embeddings", type: "EMBEDDING", envVar: "EMBEDDING_PROVIDER", status: status("EMBEDDING_PROVIDER"), value: process.env.EMBEDDING_PROVIDER || "mock" },
+      { name: "AI Provider", type: "AI", envVar: "AI_PROVIDER", value: process.env.AI_PROVIDER || "mock", ...ai },
+      { name: "Speech to Text", type: "STT", envVar: "STT_PROVIDER", value: process.env.STT_PROVIDER || "mock", ...stt,
+        detail: process.env.STT_PROVIDER && process.env.STT_PROVIDER !== "mock"
+          ? "No standalone STT provider is implemented. Real speech recognition happens via Twilio's built-in <Gather> when Telephony Provider = twilio."
+          : stt.detail },
+      { name: "Text to Speech", type: "TTS", envVar: "TTS_PROVIDER", value: process.env.TTS_PROVIDER || "mock", ...tts,
+        detail: process.env.TTS_PROVIDER && process.env.TTS_PROVIDER !== "mock"
+          ? "No standalone TTS provider is implemented. Real speech output happens via Twilio's built-in <Say> when Telephony Provider = twilio."
+          : tts.detail },
+      { name: "Telephony", type: "TELEPHONY", envVar: "TELEPHONY_PROVIDER", value: process.env.TELEPHONY_PROVIDER || "mock", ...telephony },
+      { name: "Embeddings", type: "EMBEDDING", envVar: "EMBEDDING_PROVIDER", value: process.env.EMBEDDING_PROVIDER || "mock", ...embeddings },
     ];
     const { rows: custom } = await query(`SELECT * FROM integrations ORDER BY created_at DESC`);
     res.json({ success: true, data: { builtIn, custom }, message: "Success" });

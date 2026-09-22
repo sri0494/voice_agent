@@ -55,16 +55,118 @@ export class MockTelephonyProvider extends TelephonyProvider {
   isMock() { return true; }
 }
 
+// Real implementation — Twilio Programmable Voice.
+// Uses Twilio's built-in <Gather input="speech"> for STT and <Say> for TTS,
+// so a real phone conversation works end-to-end without needing a separate
+// paid STT/TTS vendor. The per-turn conversation intelligence (relevance,
+// steering, knowledge retrieval, response generation) still runs through
+// conversationOrchestrator.js exactly as it does in the Testing Playground —
+// see server/routes/telephonyVoice.js for the TwiML webhook handlers that
+// wire this together.
+//
+// Requires: TELEPHONY_API_KEY (Account SID), TELEPHONY_API_SECRET (Auth
+// Token), TELEPHONY_PHONE_NUMBER (your Twilio number), and PUBLIC_BASE_URL
+// (this app's own public HTTPS URL, e.g. https://your-app.onrender.com) so
+// Twilio has a real URL to call back into for TwiML instructions.
+export class TwilioProvider extends TelephonyProvider {
+  constructor({ accountSid, authToken, fromNumber, publicBaseUrl }) {
+    super();
+    if (!accountSid || !authToken) {
+      throw new Error("TELEPHONY_API_KEY (Account SID) and TELEPHONY_API_SECRET (Auth Token) are required when TELEPHONY_PROVIDER=twilio");
+    }
+    if (!publicBaseUrl) {
+      throw new Error("PUBLIC_BASE_URL is required when TELEPHONY_PROVIDER=twilio (Twilio needs a real HTTPS URL to call back into)");
+    }
+    this.accountSid = accountSid;
+    this.authToken = authToken;
+    this.fromNumber = fromNumber;
+    this.publicBaseUrl = publicBaseUrl.replace(/\/$/, "");
+    this.baseApiUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}`;
+  }
+
+  _authHeader() {
+    return { Authorization: `Basic ${Buffer.from(`${this.accountSid}:${this.authToken}`).toString("base64")}` };
+  }
+
+  async _request(path, method, params) {
+    const res = await fetch(`${this.baseApiUrl}${path}`, {
+      method,
+      headers: { ...this._authHeader(), "Content-Type": "application/x-www-form-urlencoded" },
+      body: params ? new URLSearchParams(params).toString() : undefined,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(`Twilio API error ${res.status}: ${data.message || JSON.stringify(data)}`);
+    }
+    return data;
+  }
+
+  // callId is LeoMox's own internal calls.id (UUID) — passed through in the
+  // webhook path so telephonyVoice.js knows which agent/session to load
+  // without any extra lookup.
+  async makeCall({ to, from, callId }) {
+    const data = await this._request("/Calls.json", "POST", {
+      To: to,
+      From: from || this.fromNumber,
+      Url: `${this.publicBaseUrl}/api/telephony/voice/${callId}`,
+      StatusCallback: `${this.publicBaseUrl}/api/telephony/status`,
+      StatusCallbackEvent: "initiated ringing answered completed",
+      StatusCallbackMethod: "POST",
+    });
+    return { providerCallId: data.sid, status: "Ringing", mock: false };
+  }
+
+  async receiveCall() {
+    // Inbound calls are configured on the Twilio number itself (Voice
+    // webhook URL set in the Twilio console to this.publicBaseUrl +
+    // "/api/telephony/voice/inbound"), not initiated from here.
+    throw new Error("receiveCall() is not called directly for Twilio — configure the number's inbound webhook in the Twilio console instead.");
+  }
+
+  async hangup(callSid) {
+    const data = await this._request(`/Calls/${callSid}.json`, "POST", { Status: "completed" });
+    return { status: data.status, mock: false };
+  }
+
+  async transfer(callSid, toNumber) {
+    const twiml = `<Response><Dial>${toNumber}</Dial></Response>`;
+    await this._request(`/Calls/${callSid}.json`, "POST", { Twiml: twiml });
+    return { status: "Transferred", transferredTo: toNumber, mock: false };
+  }
+
+  async getCallStatus(callSid) {
+    const data = await this._request(`/Calls/${callSid}.json`, "GET");
+    return { status: data.status, mock: false };
+  }
+
+  async getRecording(callSid) {
+    const data = await this._request(`/Calls/${callSid}/Recordings.json`, "GET");
+    const recording = data.recordings?.[0];
+    return recording
+      ? { url: `https://api.twilio.com${recording.uri.replace(".json", ".mp3")}`, mock: false }
+      : { url: null, mock: false, note: "No recording found for this call" };
+  }
+
+  isMock() { return false; }
+}
+
 export function createTelephonyProvider() {
   const provider = (process.env.TELEPHONY_PROVIDER || "mock").toLowerCase();
   switch (provider) {
     case "mock":
       return new MockTelephonyProvider();
+    case "twilio":
+      return new TwilioProvider({
+        accountSid: process.env.TELEPHONY_API_KEY,
+        authToken: process.env.TELEPHONY_API_SECRET,
+        fromNumber: process.env.TELEPHONY_PHONE_NUMBER,
+        publicBaseUrl: process.env.PUBLIC_BASE_URL,
+      });
     // case "exotel":     return new ExotelProvider({ apiKey: process.env.TELEPHONY_API_KEY, apiSecret: process.env.TELEPHONY_API_SECRET, from: process.env.TELEPHONY_PHONE_NUMBER });
     // case "knowlarity": return new KnowlarityProvider({ ... });
     // case "ozonetel":   return new OzonetelProvider({ ... });
     default:
-      console.warn(`[telephony] Unknown TELEPHONY_PROVIDER="${provider}", falling back to mock. Real calls will NOT be made.`);
+      console.warn(`[telephony] Unknown TELEPHONY_PROVIDER="${provider}", falling back to mock. Real calls will NOT be made. Valid values: mock, twilio.`);
       return new MockTelephonyProvider();
   }
 }

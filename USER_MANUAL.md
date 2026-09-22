@@ -370,3 +370,82 @@ platform was built against:
    configured in Steering.
 7. Launch the campaign (or, in mock mode, review the whole configuration
    and defer launch until a real `TELEPHONY_PROVIDER` is connected).
+
+---
+
+## 13. Connecting real providers — Gemini + Twilio (step by step)
+
+As of this update, **Gemini (AI) and Twilio (telephony) are real, working
+implementations** — not mocks. Here's exactly how to turn them on.
+
+### Gemini (AI answers)
+
+1. Get an API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+2. In Render → your service → **Environment**, set:
+   ```
+   AI_PROVIDER=gemini
+   AI_API_KEY=<your key>
+   ```
+   **Important:** `AI_PROVIDER` must be the exact literal word `gemini` — not
+   your API key. The key goes in `AI_API_KEY`. Mixing these up is the #1
+   cause of "I set it up but it's still mock."
+3. Optional: also set `EMBEDDING_PROVIDER=google` to get real semantic
+   search in the Knowledge Base (uses the same `AI_API_KEY` automatically
+   if `EMBEDDING_API_KEY` isn't set separately). **If you had any documents
+   uploaded before turning this on, click ↻ Re-index on each one** —
+   embeddings from the old mock provider aren't compatible with real ones.
+
+### Twilio (real phone calls)
+
+1. Get an Account SID, Auth Token, and a phone number from
+   [twilio.com](https://twilio.com)
+2. Set in Render:
+   ```
+   TELEPHONY_PROVIDER=twilio
+   TELEPHONY_API_KEY=<Account SID>
+   TELEPHONY_API_SECRET=<Auth Token>
+   TELEPHONY_PHONE_NUMBER=<your Twilio number, e.g. +14155551234>
+   PUBLIC_BASE_URL=https://your-app.onrender.com
+   ```
+   `PUBLIC_BASE_URL` is your own Render URL — Twilio needs a real address
+   to call back into during the conversation.
+3. That's it — no separate STT/TTS vendor needed. Real calls use Twilio's
+   own built-in speech recognition (`<Gather input="speech">`) and
+   text-to-speech (`<Say>`), running through the exact same conversation
+   intelligence pipeline as the Testing Playground.
+
+### Verify it's actually connected (not just "set")
+
+Go to **Integrations** in the sidebar. Each Core Provider card now shows
+one of three honest states:
+- **CONNECTED** (green) — a real adapter exists and required keys are present
+- **DISCONNECTED** (grey) — still on `mock`
+- **ERROR** (red) — you set a real provider name but something's missing
+  (wrong env var name, missing key) — the card tells you exactly what's wrong
+
+### What still doesn't have a real adapter
+
+Speech-to-Text and Text-to-Speech as *standalone* providers are not
+implemented — and don't need to be, since Twilio handles both natively for
+real phone calls. If you set `STT_PROVIDER` or `TTS_PROVIDER` to anything
+other than `mock`, the Integrations page will now honestly show **ERROR**
+rather than falsely claiming connection.
+
+---
+
+## 14. Changelog — issues found and fixed in this update
+
+| Issue | Fix |
+|---|---|
+| Campaigns showed "Running" but never called anyone automatically | Added a real Campaign Dialer (`campaignDialer.js`) that ticks every 30s and places calls for pending contacts |
+| Gemini/Twilio "integrated" but behaved like mock | Built real `GeminiAIProvider` and `TwilioProvider` classes — previously only comments/stubs existed |
+| Integrations page falsely showed "CONNECTED" for unsupported provider names | Now validates against actually-implemented providers and required keys, with a real ERROR state |
+| Customer create form missing Customer ID, Company, Category, Assigned Agent, Alternate Mobile, Tags, Notes | Added all fields — backend already supported them |
+| User creation form missing "Agent ID" field | Added — the `users.agent_id` column existed but had no UI |
+| Knowledge Base upload was one file at a time | Now supports multi-file select and sequential upload |
+| No public "Contact Us" form despite a public backend endpoint | Added `/contact` page, linked from Login |
+| `"pin"` substring matched inside ordinary words like "shopping"/"opinion", wrongly flagging them UNSAFE | Fixed with word-boundary matching |
+| Testing Playground lost conversation state every message | Fixed with proper session continuity |
+| Twilio/generic webhook signature validation was placeholder-only | Real Twilio HMAC-SHA1 signature validation implemented |
+| Contacts stuck at `QUEUED` forever after their call ended | Now synced to `DONE`/`FAILED` when the call resolves |
+

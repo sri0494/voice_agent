@@ -40,14 +40,27 @@ export default function KnowledgeBaseDetail() {
   }, [kb]);
 
   const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     setUploading(true);
+    let succeeded = 0;
+    const failed = [];
     try {
-      await api.uploadDocument(file, id);
+      // Uploaded sequentially (not in parallel) so each document's
+      // async processing kicks off cleanly and errors are attributable
+      // to a specific file rather than racing each other.
+      for (const file of files) {
+        try {
+          await api.uploadDocument(file, id);
+          succeeded++;
+        } catch (err) {
+          failed.push(`${file.name}: ${err.message}`);
+        }
+      }
+      if (failed.length > 0) {
+        alert(`Uploaded ${succeeded} of ${files.length} files.\n\nFailed:\n${failed.join("\n")}`);
+      }
       load();
-    } catch (err) {
-      alert(err.message);
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -107,13 +120,20 @@ export default function KnowledgeBaseDetail() {
       <div className="section-title" style={{ marginTop: 8 }}>{kb.name}</div>
       <div className="section-sub">{kb.description || "No description"}</div>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
-        <input ref={fileInput} type="file" accept=".pdf,.txt,.docx,.csv,.md" onChange={handleUpload} style={{ display: "none" }} />
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        <input ref={fileInput} type="file" multiple accept=".pdf,.txt,.docx,.csv,.md" onChange={handleUpload} style={{ display: "none" }} />
         <button className="btn btn-primary" onClick={() => fileInput.current?.click()} disabled={uploading}>
-          {uploading ? "Uploading..." : "⬆ Upload Document"}
+          {uploading ? "Uploading..." : "⬆ Upload Documents"}
         </button>
         <button className="btn" onClick={() => setShowText((v) => !v)}>+ Add Text</button>
         <button className="btn" onClick={() => setShowFaq((v) => !v)}>+ Add FAQ</button>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 20 }}>
+        Select multiple files at once. Supported: PDF, TXT, DOCX, CSV, Markdown.
+        Video, audio, and image files aren't supported — the knowledge base
+        needs actual text to search, and turning media into text needs
+        speech-to-text/OCR that isn't built yet. Workaround: transcribe the
+        content yourself and use "+ Add Text" instead.
       </div>
 
       {showText && (

@@ -4,6 +4,7 @@ import DashboardLayout from "./layouts/DashboardLayout.jsx";
 import { LoadingState } from "./components/DataState.jsx";
 
 import Login from "./pages/Login.jsx";
+import ContactUs from "./pages/ContactUs.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Customers from "./pages/Customers.jsx";
 import CustomerDetail from "./pages/CustomerDetail.jsx";
@@ -42,6 +43,7 @@ export default function App() {
         path="/login"
         element={loading ? <div className="login-wrap"><LoadingState /></div> : user ? <Navigate to="/dashboard" replace /> : <Login />}
       />
+      <Route path="/contact" element={<ContactUs />} />
 
       <Route
         element={

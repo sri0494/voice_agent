@@ -78,7 +78,7 @@ function UsersTab() {
   const [users, setUsers] = useState([]);
   const [state, setState] = useState("loading");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "AGENT", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", agentId: "", role: "AGENT", password: "" });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -139,6 +139,7 @@ function UsersTab() {
           <div className="form-group"><label>Name</label><input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="form-group"><label>Email</label><input className="input" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           <div className="form-group"><label>Phone</label><input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+          <div className="form-group"><label>Agent ID <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(internal desk/agent code, optional)</span></label><input className="input" placeholder="e.g. AGT-014" value={form.agentId} onChange={(e) => setForm({ ...form, agentId: e.target.value })} /></div>
           <div className="form-group">
             <label>Role</label>
             <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
@@ -152,12 +153,13 @@ function UsersTab() {
 
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Agent ID</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
                 <td>{u.name}</td>
                 <td>{u.email}</td>
+                <td>{u.agent_id || "—"}</td>
                 <td><StatusBadge status={u.role} /></td>
                 <td><StatusBadge status={u.status} /></td>
                 <td>{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : "Never"}</td>

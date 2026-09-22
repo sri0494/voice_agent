@@ -25,6 +25,7 @@ import knowledgeBaseRoutes from "./routes/knowledgeBases.js";
 import documentRoutes from "./routes/documents.js";
 import ragRoutes from "./routes/rag.js";
 import telephonyRoutes from "./routes/telephony.js";
+import telephonyVoiceRoutes from "./routes/telephonyVoice.js";
 import contactRequestRoutes from "./routes/contactRequests.js";
 import analyticsRoutes from "./routes/analytics.js";
 import integrationRoutes from "./routes/integrations.js";
@@ -33,6 +34,7 @@ import phoneNumberRoutes from "./routes/phoneNumbers.js";
 import conversationRoutes from "./routes/conversation.js";
 import surveyRoutes from "./routes/surveys.js";
 import agentSteeringRoutes from "./routes/agentSteering.js";
+import { startCampaignDialer } from "./services/campaigns/campaignDialer.js";
 
 dotenv.config();
 
@@ -72,6 +74,7 @@ app.use("/api/knowledge-bases", knowledgeBaseRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/rag", ragRoutes);
 app.use("/api/telephony", telephonyRoutes);
+app.use("/api/telephony", telephonyVoiceRoutes);
 app.use("/api/contact-requests", contactRequestRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/integrations", integrationRoutes);
@@ -115,6 +118,7 @@ export function broadcastLiveCallUpdate(payload) {
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, "0.0.0.0", () => {
   logger.info("server_started", { port: PORT, env: process.env.NODE_ENV || "development" });
+  startCampaignDialer();
 });
 
 process.on("SIGTERM", () => {

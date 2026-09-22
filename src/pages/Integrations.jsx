@@ -43,8 +43,9 @@ export default function Integrations() {
               <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</div>
               <StatusBadge status={p.status} />
             </div>
-            <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-              {p.status === "CONNECTED" ? `Provider: ${p.value}` : `Set ${p.envVar} in Render to connect`}
+            <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginBottom: 4 }}>Value: {p.value}</div>
+            <div style={{ fontSize: 11.5, color: p.status === "ERROR" ? "var(--red)" : "var(--text-muted)" }}>
+              {p.detail}
             </div>
           </div>
         ))}
