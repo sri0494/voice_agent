@@ -13,6 +13,7 @@ export default function Campaigns() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", type: "Survey", language: "English", agentId: "" });
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
 
   const load = async () => {
     setState("loading");
@@ -45,8 +46,15 @@ export default function Campaigns() {
 
   const doAction = async (id, action) => {
     const fn = { start: api.startCampaign, pause: api.pauseCampaign, resume: api.resumeCampaign, stop: api.stopCampaign }[action];
-    await fn(id);
-    load();
+    setActionLoading(id);
+    try {
+      await fn(id);
+      await load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   if (state === "loading") return <LoadingState label="Loading campaigns..." />;
@@ -82,10 +90,15 @@ export default function Campaigns() {
           </div>
           <div className="form-group">
             <label>AI Agent</label>
-            <select className="input" value={form.agentId} onChange={(e) => setForm({ ...form, agentId: e.target.value })}>
+            <select className="input" required value={form.agentId} onChange={(e) => setForm({ ...form, agentId: e.target.value })}>
               <option value="">Select agent</option>
               {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
+            {agents.length === 0 && (
+              <div style={{ fontSize: 11.5, color: "var(--amber)", marginTop: 4 }}>
+                No agents exist yet — create one under AI Engine first.
+              </div>
+            )}
           </div>
           <button className="btn btn-primary" disabled={saving}>{saving ? "Creating..." : "Create Campaign"}</button>
         </form>
@@ -109,9 +122,21 @@ export default function Campaigns() {
                   <td>{c.contact_count}</td>
                   <td>{c.call_count}</td>
                   <td>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {c.status !== "Running" && <button className="btn btn-sm" onClick={() => doAction(c.id, c.status === "Paused" ? "resume" : "start")}>▶ Start</button>}
-                      {c.status === "Running" && <button className="btn btn-sm" onClick={() => doAction(c.id, "pause")}>⏸ Pause</button>}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {c.status !== "Running" && (
+                          <button className="btn btn-sm" disabled={actionLoading === c.id} onClick={() => doAction(c.id, c.status === "Paused" ? "resume" : "start")}>
+                            {actionLoading === c.id ? "..." : "▶ Start"}
+                          </button>
+                        )}
+                        {c.status === "Running" && (
+                          <button className="btn btn-sm" disabled={actionLoading === c.id} onClick={() => doAction(c.id, "pause")}>
+                            {actionLoading === c.id ? "..." : "⏸ Pause"}
+                          </button>
+                        )}
+                      </div>
+                      {!c.agent_name && <div style={{ fontSize: 10.5, color: "var(--amber)" }}>No agent assigned</div>}
+                      {c.agent_name && Number(c.contact_count) === 0 && <div style={{ fontSize: 10.5, color: "var(--amber)" }}>No contacts uploaded</div>}
                     </div>
                   </td>
                 </tr>

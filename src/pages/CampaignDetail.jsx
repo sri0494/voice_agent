@@ -11,6 +11,7 @@ export default function CampaignDetail() {
   const [state, setState] = useState("loading");
   const fileInput = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const load = async () => {
     setState("loading");
@@ -51,17 +52,53 @@ export default function CampaignDetail() {
     }
   };
 
+  const doAction = async (action) => {
+    const fn = { start: api.startCampaign, pause: api.pauseCampaign, resume: api.resumeCampaign, stop: api.stopCampaign }[action];
+    setActionLoading(true);
+    try {
+      await fn(id);
+      await load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (state === "loading") return <LoadingState label="Loading campaign..." />;
   if (state === "error") return <ErrorState onRetry={load} />;
 
   return (
     <div>
       <Link to="/campaigns" style={{ color: "var(--text-secondary)", fontSize: 13 }}>← Back to Campaigns</Link>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 4 }}>
-        <div className="section-title">{campaign.name}</div>
-        <StatusBadge status={campaign.status} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 4, flexWrap: "wrap", gap: 10 }}>
+        <div className="section-title" style={{ marginBottom: 0 }}>{campaign.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <StatusBadge status={campaign.status} />
+          {campaign.status !== "Running" && campaign.status !== "Completed" && campaign.status !== "Cancelled" && (
+            <button className="btn btn-sm btn-primary" disabled={actionLoading} onClick={() => doAction(campaign.status === "Paused" ? "resume" : "start")}>
+              {actionLoading ? "..." : "▶ Start"}
+            </button>
+          )}
+          {campaign.status === "Running" && (
+            <>
+              <button className="btn btn-sm" disabled={actionLoading} onClick={() => doAction("pause")}>{actionLoading ? "..." : "⏸ Pause"}</button>
+              <button className="btn btn-sm btn-danger" disabled={actionLoading} onClick={() => doAction("stop")}>⏹ Stop</button>
+            </>
+          )}
+        </div>
       </div>
       <div className="section-sub">{campaign.type} · {campaign.language} · Agent: {campaign.agent_name || "—"}</div>
+      {!campaign.agent_name && (
+        <div className="card" style={{ marginBottom: 14, borderColor: "var(--amber)", background: "var(--bg-elevated)" }}>
+          <span style={{ color: "var(--amber)", fontSize: 12.5 }}>⚠️ No AI Agent assigned — this campaign can't be started until you edit it and select one.</span>
+        </div>
+      )}
+      {contacts.length === 0 && (
+        <div className="card" style={{ marginBottom: 14, borderColor: "var(--amber)", background: "var(--bg-elevated)" }}>
+          <span style={{ color: "var(--amber)", fontSize: 12.5 }}>⚠️ No contacts uploaded yet — upload a CSV below before starting.</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-3" style={{ marginBottom: 20 }}>
         <div className="card"><div className="label" style={{ color: "var(--text-secondary)", fontSize: 12 }}>Retry Attempts</div><div style={{ fontSize: 22, fontWeight: 700 }}>{campaign.retry_attempts}</div></div>

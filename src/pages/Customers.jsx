@@ -56,6 +56,16 @@ export default function Customers() {
     }
   };
 
+  const handleDelete = async (customerId, name) => {
+    if (!confirm(`Delete customer "${name || "this customer"}"? This cannot be undone.`)) return;
+    try {
+      await api.deleteCustomer(customerId);
+      load();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
@@ -117,7 +127,7 @@ export default function Customers() {
       {state === "ready" && customers.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Mobile</th><th>Email</th><th>City</th><th>Status</th><th>Assigned Agent</th></tr></thead>
+            <thead><tr><th>Name</th><th>Mobile</th><th>Email</th><th>City</th><th>Status</th><th>Assigned Agent</th><th>Actions</th></tr></thead>
             <tbody>
               {customers.map((c) => (
                 <tr key={c.id}>
@@ -127,6 +137,7 @@ export default function Customers() {
                   <td>{c.city || "—"}</td>
                   <td><StatusBadge status={c.status} /></td>
                   <td>{c.assigned_agent_name || "—"}</td>
+                  <td><button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id, `${c.first_name} ${c.last_name || ""}`.trim())}>Delete</button></td>
                 </tr>
               ))}
             </tbody>

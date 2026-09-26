@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import * as api from "../services/api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import { LoadingState, ErrorState } from "../components/DataState.jsx";
 
 export default function CustomerDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [customer, setCustomer] = useState(null);
   const [state, setState] = useState("loading");
 
@@ -21,6 +22,17 @@ export default function CustomerDetail() {
 
   useEffect(() => { load(); }, [id]);
 
+  const handleDelete = async () => {
+    const name = `${customer.first_name} ${customer.last_name || ""}`.trim();
+    if (!confirm(`Delete customer "${name}"? This cannot be undone.`)) return;
+    try {
+      await api.deleteCustomer(id);
+      navigate("/customers");
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   if (state === "loading") return <LoadingState label="Loading customer..." />;
   if (state === "error") return <ErrorState onRetry={load} />;
 
@@ -28,8 +40,11 @@ export default function CustomerDetail() {
     <div>
       <Link to="/customers" style={{ color: "var(--text-secondary)", fontSize: 13 }}>← Back to Customers</Link>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-        <div className="section-title">{customer.first_name} {customer.last_name || ""}</div>
-        <StatusBadge status={customer.status} />
+        <div className="section-title" style={{ marginBottom: 0 }}>{customer.first_name} {customer.last_name || ""}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <StatusBadge status={customer.status} />
+          <button className="btn btn-sm btn-danger" onClick={handleDelete}>Delete Customer</button>
+        </div>
       </div>
       <div className="section-sub">{customer.mobile} · {customer.email || "no email"} · {customer.city || "—"}</div>
 

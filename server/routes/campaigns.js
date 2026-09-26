@@ -74,6 +74,22 @@ router.put("/:id", async (req, res, next) => {
 
 async function setStatus(req, res, next, status) {
   try {
+    if (status === "Running") {
+      const { rows: campaignRows } = await query(`SELECT * FROM campaigns WHERE id = $1`, [req.params.id]);
+      const campaign = campaignRows[0];
+      if (!campaign) throw new ApiError(404, "Campaign not found");
+      if (!campaign.agent_id) {
+        throw new ApiError(400, "This campaign has no AI Agent assigned. Edit the campaign and select an agent before starting it.");
+      }
+      const { rows: contactCountRows } = await query(
+        `SELECT COUNT(*) FROM contacts WHERE campaign_id = $1 AND status = 'PENDING'`,
+        [req.params.id]
+      );
+      if (Number(contactCountRows[0].count) === 0) {
+        throw new ApiError(400, "This campaign has no pending contacts to call. Upload a contact list first.");
+      }
+    }
+
     const { rows } = await query(
       `UPDATE campaigns SET status = $2, updated_at = now() WHERE id = $1 RETURNING id, status`,
       [req.params.id, status]
