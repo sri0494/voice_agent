@@ -4,17 +4,38 @@ import * as api from "../services/api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import { LoadingState, ErrorState, EmptyState } from "../components/DataState.jsx";
 
+const EMPTY_FORM = {
+  firstName: "", lastName: "", mobile: "", alternateMobile: "", email: "", city: "",
+  customerCode: "", companyName: "", customerCategory: "", assignedAgentId: "",
+  preferredLanguage: "English", tagsText: "", notes: "", status: "ACTIVE",
+};
+
+// Convert a customer row from the API (snake_case) into the form shape.
+const customerToForm = (c) => ({
+  firstName: c.first_name || "",
+  lastName: c.last_name || "",
+  mobile: c.mobile || "",
+  alternateMobile: c.alternate_mobile || "",
+  email: c.email || "",
+  city: c.city || "",
+  customerCode: c.customer_code || "",
+  companyName: c.company_name || "",
+  customerCategory: c.customer_category || "",
+  assignedAgentId: c.assigned_agent_id || "",
+  preferredLanguage: c.preferred_language || "English",
+  tagsText: Array.isArray(c.tags) ? c.tags.join(", ") : (c.tags || ""),
+  notes: c.notes || "",
+  status: c.status || "ACTIVE",
+});
+
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
   const [agents, setAgents] = useState([]);
   const [state, setState] = useState("loading");
   const [q, setQ] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    firstName: "", lastName: "", mobile: "", alternateMobile: "", email: "", city: "",
-    customerCode: "", companyName: "", customerCategory: "", assignedAgentId: "",
-    preferredLanguage: "English", tagsText: "", notes: "",
-  });
+  const [editingId, setEditingId] = useState(null); // null = creating, id = editing
+  const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -31,23 +52,42 @@ export default function Customers() {
 
   useEffect(() => { load(); }, [q]);
 
-  const resetForm = () => setForm({
-    firstName: "", lastName: "", mobile: "", alternateMobile: "", email: "", city: "",
-    customerCode: "", companyName: "", customerCategory: "", assignedAgentId: "",
-    preferredLanguage: "English", tagsText: "", notes: "",
-  });
+  const closeForm = () => {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setShowForm(false);
+  };
 
-  const handleCreate = async (e) => {
+  const openCreate = () => {
+    if (showForm && !editingId) return closeForm();
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setShowForm(true);
+  };
+
+  const openEdit = (c) => {
+    setForm(customerToForm(c));
+    setEditingId(c.id);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    const { tagsText, ...rest } = form;
+    const payload = {
+      ...rest,
+      assignedAgentId: form.assignedAgentId || null,
+      tags: tagsText.split(",").map((t) => t.trim()).filter(Boolean),
+    };
     try {
-      await api.createCustomer({
-        ...form,
-        assignedAgentId: form.assignedAgentId || null,
-        tags: form.tagsText.split(",").map((t) => t.trim()).filter(Boolean),
-      });
-      resetForm();
-      setShowForm(false);
+      if (editingId) {
+        await api.updateCustomer(editingId, payload);
+      } else {
+        await api.createCustomer(payload);
+      }
+      closeForm();
       load();
     } catch (err) {
       alert(err.message);
@@ -60,11 +100,14 @@ export default function Customers() {
     if (!confirm(`Delete customer "${name || "this customer"}"? This cannot be undone.`)) return;
     try {
       await api.deleteCustomer(customerId);
+      if (editingId === customerId) closeForm();
       load();
     } catch (err) {
       alert(err.message);
     }
   };
+
+  const isEditing = Boolean(editingId);
 
   return (
     <div>
@@ -73,11 +116,14 @@ export default function Customers() {
           <div className="section-title">Customers</div>
           <div className="section-sub">People with an established business relationship</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>+ Add Customer</button>
+        <button className="btn btn-primary" onClick={openCreate}>+ Add Customer</button>
       </div>
 
       {showForm && (
-        <form className="card" onSubmit={handleCreate} style={{ marginBottom: 16, maxWidth: 520 }}>
+        <form className="card" onSubmit={handleSubmit} style={{ marginBottom: 16, maxWidth: 520 }}>
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>
+            {isEditing ? "Edit Customer" : "New Customer"}
+          </div>
           <div className="grid grid-cols-2">
             <div className="form-group"><label>First Name</label><input className="input" required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></div>
             <div className="form-group"><label>Last Name</label><input className="input" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></div>
@@ -113,8 +159,22 @@ export default function Customers() {
             </div>
             <div className="form-group"><label>Tags (comma-separated)</label><input className="input" placeholder="vip, repeat-customer" value={form.tagsText} onChange={(e) => setForm({ ...form, tagsText: e.target.value })} /></div>
           </div>
+          {isEditing && (
+            <div className="form-group">
+              <label>Status</label>
+              <select className="input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+          )}
           <div className="form-group"><label>Notes</label><textarea className="input" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          <button className="btn btn-primary" disabled={saving}>{saving ? "Creating..." : "Create Customer"}</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-primary" disabled={saving}>
+              {saving ? (isEditing ? "Saving..." : "Creating...") : (isEditing ? "Save Changes" : "Create Customer")}
+            </button>
+            <button type="button" className="btn" onClick={closeForm} disabled={saving}>Cancel</button>
+          </div>
         </form>
       )}
 
@@ -137,7 +197,12 @@ export default function Customers() {
                   <td>{c.city || "—"}</td>
                   <td><StatusBadge status={c.status} /></td>
                   <td>{c.assigned_agent_name || "—"}</td>
-                  <td><button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id, `${c.first_name} ${c.last_name || ""}`.trim())}>Delete</button></td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className="btn btn-sm" onClick={() => openEdit(c)}>Edit</button>
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id, `${c.first_name} ${c.last_name || ""}`.trim())}>Delete</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
