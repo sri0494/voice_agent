@@ -7,11 +7,11 @@ import { LoadingState, ErrorState, EmptyState } from "../components/DataState.js
 const EMPTY_FORM = {
   firstName: "", lastName: "", mobile: "", alternateMobile: "", email: "", city: "",
   customerCode: "", companyName: "", customerCategory: "", assignedAgentId: "",
-  preferredLanguage: "English", tagsText: "", notes: "", status: "ACTIVE",
+  preferredLanguage: "English", tagsText: "", notes: "", status: "Active",
 };
 
 // Convert a customer row from the API (snake_case) into the form shape.
-const customerToForm = (c) => ({
+const customerToForm = (c, agents = []) => ({
   firstName: c.first_name || "",
   lastName: c.last_name || "",
   mobile: c.mobile || "",
@@ -21,11 +21,11 @@ const customerToForm = (c) => ({
   customerCode: c.customer_code || "",
   companyName: c.company_name || "",
   customerCategory: c.customer_category || "",
-  assignedAgentId: c.assigned_agent_id || "",
+  assignedAgentId: c.assigned_agent_id ?? agents.find((a) => a.name === c.assigned_agent_name)?.id ?? "",
   preferredLanguage: c.preferred_language || "English",
   tagsText: Array.isArray(c.tags) ? c.tags.join(", ") : (c.tags || ""),
   notes: c.notes || "",
-  status: c.status || "ACTIVE",
+  status: c.status || "Active",
 });
 
 export default function Customers() {
@@ -66,7 +66,7 @@ export default function Customers() {
   };
 
   const openEdit = (c) => {
-    setForm(customerToForm(c));
+    setForm(customerToForm(c, agents));
     setEditingId(c.id);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -75,11 +75,13 @@ export default function Customers() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    const { tagsText, ...rest } = form;
+    const { tagsText, status, ...rest } = form;
     const payload = {
       ...rest,
       assignedAgentId: form.assignedAgentId || null,
       tags: tagsText.split(",").map((t) => t.trim()).filter(Boolean),
+      // status is only sent when editing, so create matches the original payload exactly
+      ...(editingId ? { status } : {}),
     };
     try {
       if (editingId) {
@@ -163,8 +165,8 @@ export default function Customers() {
             <div className="form-group">
               <label>Status</label>
               <select className="input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
               </select>
             </div>
           )}
