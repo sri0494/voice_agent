@@ -3,17 +3,23 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import * as api from "../services/api.js";
 import StatusBadge from "../components/StatusBadge.jsx";
 import { LoadingState, ErrorState } from "../components/DataState.jsx";
+import CustomerForm, { customerToForm } from "../components/CustomerForm.jsx";
 
 export default function CustomerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState(null);
+  const [agents, setAgents] = useState([]);
   const [state, setState] = useState("loading");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setState("loading");
     try {
-      setCustomer(await api.getCustomer(id));
+      const [c, a] = await Promise.all([api.getCustomer(id), api.getAgents()]);
+      setCustomer(c);
+      setAgents(a);
       setState("ready");
     } catch {
       setState("error");
@@ -33,6 +39,19 @@ export default function CustomerDetail() {
     }
   };
 
+  const handleSave = async (payload) => {
+    setSaving(true);
+    try {
+      await api.updateCustomer(id, payload);
+      setEditing(false);
+      await load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (state === "loading") return <LoadingState label="Loading customer..." />;
   if (state === "error") return <ErrorState onRetry={load} />;
 
@@ -43,10 +62,24 @@ export default function CustomerDetail() {
         <div className="section-title" style={{ marginBottom: 0 }}>{customer.first_name} {customer.last_name || ""}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <StatusBadge status={customer.status} />
+          <button className="btn btn-sm" onClick={() => setEditing((v) => !v)}>{editing ? "Close Edit" : "Edit Customer"}</button>
           <button className="btn btn-sm btn-danger" onClick={handleDelete}>Delete Customer</button>
         </div>
       </div>
       <div className="section-sub">{customer.mobile} · {customer.email || "no email"} · {customer.city || "—"}</div>
+
+      {editing && (
+        <div style={{ marginTop: 16 }}>
+          <CustomerForm
+            initial={customerToForm(customer, agents)}
+            agents={agents}
+            isEditing
+            saving={saving}
+            onSubmit={handleSave}
+            onCancel={() => setEditing(false)}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-2" style={{ alignItems: "flex-start" }}>
         <div className="card">
@@ -57,7 +90,7 @@ export default function CustomerDetail() {
           <Row label="Customer ID" value={customer.customer_code || "—"} />
           <Row label="Company" value={customer.company_name || "—"} />
           <Row label="Category" value={customer.customer_category || "—"} />
-          <Row label="Preferred Language" value={customer.preferred_language} />
+          <Row label="Preferred Language" value={customer.preferred_language || "—"} />
           <Row label="Assigned Agent" value={customer.assigned_agent_name || "—"} />
           <Row label="Tags" value={customer.tags?.length ? customer.tags.join(", ") : "—"} />
           {customer.notes && (
@@ -70,7 +103,7 @@ export default function CustomerDetail() {
 
         <div className="card">
           <div style={{ fontWeight: 700, marginBottom: 12 }}>Call History</div>
-          {customer.calls?.length === 0 ? (
+          {!customer.calls?.length ? (
             <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>No calls yet with this customer.</div>
           ) : (
             customer.calls.map((call) => (
